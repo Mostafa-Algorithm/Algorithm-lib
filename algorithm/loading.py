@@ -5,196 +5,280 @@ import sys
 import time
 import threading
 import itertools
-import progressbar
-from typing import List, Iterator, Optional
-from alive_progress import alive_bar
-from progress.bar import Bar
+from enum import auto, Enum
+from typing import List, Iterator, Optional, Callable, Any, Generator
 from algorithm.colors import *
 from algorithm.thread import Thread
 
 
+class LoadingStyle(Enum):
+  """Enumeration of available loading animation styles.
+
+  Attributes:
+      SPINNER: Classic spinner (|, /, -, \)
+      DOTS: Expanding dots animation
+      ARROWS: Rotating arrow animation
+      BOUNCING: Bouncing bar animation
+      SEARCHING: Radar-like searching animation
+      RADAR: Sweeping radar animation
+      PULSE: Pulsing circle animation
+      BAR: Progress bar style (used for bar() method)
+  """
+  SPINNER = auto()
+  DOTS = auto()
+  ARROWS = auto()
+  BOUNCING = auto()
+  SEARCHING = auto()
+  RADAR = auto()
+  PULSE = auto()
+  BAR = auto()
+
+
 class Loading:
-  """Class for displaying loading indicators and progress bars"""
+  """Advanced loading indicator with multiple styles and print handling.
 
-  def __init__(self, color: str = blue):
-    self.color = color
+  Features:
+  - 8 built-in animation styles
+  - Threaded and non-threaded operation
+  - Progress bars for iterables
+  - Context manager support
+  - External print handling
+  - Color customization
 
-  @staticmethod
-  def loading_print(items: List, message: str = 'Loading: ',
-                    color: str = blue) -> Iterator:
+  Example Usage:
+      >>> with Loading("Processing", style=LoadingStyle.PULSE):
+      ...     # Your code here
+      ...     time.sleep(2)
+  """
+
+  _ANIMATIONS = {
+    LoadingStyle.SPINNER: ["|", "/", "-", "\\"],
+    LoadingStyle.DOTS: [".", "..", "...", "...."],
+    LoadingStyle.ARROWS: ["←", "↖", "↑", "↗", "→", "↘", "↓", "↙"],
+    LoadingStyle.BOUNCING: ["[    ]", "[=   ]", "[==  ]", "[=== ]", "[ ===]", "[  ==]", "[   =]", "[    ]"],
+    LoadingStyle.SEARCHING: [
+      "[◜    ]", "[ ◜   ]", "[  ◜  ]", "[   ◜ ]", "[    ◜]",
+      "[    ◝]", "[   ◝ ]", "[  ◝  ]", "[ ◝   ]", "[◝    ]",
+      "[◞    ]", "[ ◞   ]", "[  ◞  ]", "[   ◞ ]", "[    ◞]",
+      "[    ◟]", "[   ◟ ]", "[  ◟  ]", "[ ◟   ]", "[◟    ]"
+    ],
+    LoadingStyle.RADAR: [
+      "🞅∙∙∙∙∙", "∙🞅∙∙∙∙", "∙∙🞅∙∙∙", "∙∙∙🞅∙∙", "∙∙∙∙🞅∙",
+      "∙∙∙∙∙🞅", "∙∙∙∙🞆∙", "∙∙∙🞆∙∙", "∙∙🞆∙∙∙", "∙🞆∙∙∙∙"
+    ],
+    LoadingStyle.PULSE: ["○", "◎", "◉", "●", "◉", "◎"]
+  }
+
+  _COLORS = {
+    "blue": blue,
+    "green": green,
+    "yellow": yellow,
+    "red": red,
+    "cyan": cyan,
+    "white": white,
+    "reset": reset
+  }
+
+  def __init__(
+      self,
+      message: str = "Loading...",
+      color: str = "blue",
+      style: LoadingStyle = LoadingStyle.SPINNER,
+      use_thread: bool = False
+  ):
+    """Initialize loading indicator.
+
+    Args:
+        message: Text to display before animation
+        color: Color name from available colors
+        style: Animation style from LoadingStyle enum
+        use_thread: Run animation in background thread
     """
-        Display an animated progress bar for iterating through a list
-
-        Args:
-            items: List of items to iterate through
-            message: Message to display
-            color: Color to use
-
-        Returns:
-            Iterator yielding items from the list
-        """
-    with alive_bar(len(items), title=color + message,
-                   force_tty=False, calibrate=None) as bar:
-      for item in items:
-        yield item
-        bar()
-
-  @staticmethod
-  def loading_message(message: str = 'Loading...', color: str = blue) -> None:
-    """
-        Display a simple loading message with animated marker
-
-        Args:
-            message: Message to display
-            color: Color to use
-        """
-    progressbar.ProgressBar(
-      widgets=[color + message]
-    ).start()
-
-  @staticmethod
-  def loading_animation(items: List, message: str = 'Loading...',
-                        color: str = blue) -> Iterator:
-    """
-        Display an animation while iterating through items
-
-        Args:
-            items: List of items to iterate through
-            message: Message to display
-            color: Color to use
-
-        Returns:
-            Iterator yielding items from the list
-        """
-    bar = progressbar.ProgressBar(
-      widgets=[color + message, progressbar.AnimatedMarker()]
-    ).start()
-
-    for item in items:
-      yield item
-      bar.update()
-
-  @staticmethod
-  def loading_bar(items: List, message: str = 'Loading: ',
-                  icon: str = '█', color: str = blue) -> Iterator:
-    """
-        Display a progress bar while iterating through items
-
-        Args:
-            items: List of items to iterate through
-            message: Message to display
-            icon: Character to use for progress bar
-            color: Color to use
-
-        Returns:
-            Iterator yielding items from the list
-        """
-    with Bar(message, suffix='%(percent)d%%', fill=icon) as bar:
-      for item in items:
-        yield item
-        bar.next()
-
-  @staticmethod
-  def loading_list(items: List, message: str = "Loading: ",
-                   style: bool = True, size: int = 50,
-                   color: str = blue) -> Iterator:
-    """
-        Display a custom loading bar for list iteration
-
-        Args:
-            items: List of items to iterate through
-            message: Message to display
-            style: Whether to use block style (True) or hash style (False)
-            size: Width of the progress bar
-            color: Color to use
-
-        Returns:
-            Iterator yielding items from the list
-        """
-    count = len(items)
-
-    def show(j: int) -> None:
-      """Update progress display"""
-      x = int(size * j / count)
-      sys.stdout.flush()
-      if style:
-        sys.stdout.write(color + "%s[%s%s] %i/%i\r" % (
-          message, '█' * x, " " * (size - x), j, count))
-      else:
-        sys.stdout.write(color + "%s[%s%s] %i/%i\r" % (
-          message, '#' * x, "." * (size - x), j, count))
-      sys.stdout.flush()
-
-    show(0)
-    for i, item in enumerate(items):
-      yield item
-      show(i + 1)
-
-    sys.stdout.write("\n")
-    sys.stdout.flush()
-
-
-class LoadingThread(threading.Thread):
-  """Thread-based loading animation"""
-
-  def __init__(self, message: str = 'Loading...', color: str = blue):
-    """
-        Initialize loading thread
-
-        Args:
-            message: Message to display
-            color: Color to use
-        """
-    super().__init__()
     self.message = message
-    self.color = color
-    self.l = len(message) + 1
-    self.thread = Thread(target=self.animate)
-    self.thread.start()
+    self.color = self._COLORS.get(color, "\033[94m")
+    self.style = style
+    self.use_thread = use_thread
+    self._stop_event = threading.Event()
+    self._thread = None
+    self._lock = threading.Lock()
+    self._last_line_length = 0
+    self._running = False
 
-  def stop(self, message: Optional[str] = None) -> None:
-    """
-        Stop the loading animation
+  def _get_frames(self):
+    """Get animation frames for current style."""
+    return self._ANIMATIONS.get(self.style, ["*"])
 
-        Args:
-            message: Optional final message to display
-        """
-    self.thread.kill()
-    sys.stdout.write('\r' + (' ' * self.l))
-    if message:
-      sys.stdout.write('\r' + message + '\n')
-    else:
-      sys.stdout.write('\r')
+  def _animate(self):
+      """Main animation loop with proper cleanup."""
+      frames = itertools.cycle(self._get_frames())
+      self._running = True
 
-  def animate(self) -> None:
-    """Run the loading animation"""
-    for c in itertools.cycle(['|', '/', '-', '\\']):
-      sys.stdout.write('\r' + self.color + self.message + c)
+      try:
+          while not self._stop_event.is_set():
+              with self._lock:
+                  self._clear_line()
+                  frame = next(frames)
+                  line = f"{self.color}{self.message} {frame}{self._COLORS['reset']}"
+                  sys.stdout.write(line)
+                  sys.stdout.flush()
+                  self._last_line_length = len(line)
+              time.sleep(0.1)
+      except KeyboardInterrupt:
+          pass  # Let the main thread handle the interrupt
+      except Exception as e:
+          print(f"\nLoading error: {e}", file=sys.stderr)
+      finally:
+          with self._lock:
+              self._clear_line()
+          self._running = False
+
+  def _clear_line(self):
+      """Clear the current line safely."""
+      sys.stdout.write("\r" + " " * self._last_line_length + "\r")
       sys.stdout.flush()
-      time.sleep(0.05)
+
+  def start(self):
+    """Start the loading animation.
+
+    Starts either threaded or non-threaded animation based on initialization.
+    """
+    if self.use_thread:
+      self._thread = Thread(target=self._animate)
+      self._thread.daemon = True
+      self._thread.start()
+    else:
+      self._animate()
+
+  def stop(self, final_message: Optional[str] = None):
+    """Stop the loading animation.
+
+    Args:
+        final_message: Optional message to display after stopping
+    """
+    self._stop_event.set()
+
+    try:
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=0.1)  # Short timeout for KeyboardInterrupt
+    except KeyboardInterrupt:
+        pass  # Already stopping
+
+    with self._lock:
+        self._clear_line()
+        if final_message:
+            print(final_message)
+
+  def __enter__(self):
+    """Context manager entry point.
+
+    Returns:
+        self: Loading instance
+    """
+    self.start()
+    return self
+
+  def __exit__(self, exc_type, exc_val, exc_tb):
+    """Context manager exit point.
+
+    Args:
+        exc_type: Exception type if any
+        exc_val: Exception value if any
+        exc_tb: Exception traceback if any
+    """
+    self.stop()
+
+  @classmethod
+  def bar(cls, iterable: List, message: str = "Loading: ", color: str = "blue",
+          size: int = 50, fill_char: str = "█") -> Generator[Any, None, None]:
+    """Create a progress bar for iterables.
+
+    Args:
+        iterable: Items to iterate over
+        message: Prefix message
+        color: Progress bar color
+        size: Bar width in characters
+        fill_char: Character to fill progress
+
+    Yields:
+        Items from the iterable one by one
+
+    Example:
+        >>> for item in Loading.bar(items):
+        ...     process(item)
+    """
+    color_code = cls._COLORS.get(color, blue)
+    total = len(iterable)
+
+    def _update(progress: int):
+      filled = int(size * progress / total)
+      sys.stdout.write(
+        f"\r{color_code}{message}[{fill_char * filled}{' ' * (size - filled)}] "
+        f"{progress}/{total}{reset}"
+      )
+      sys.stdout.flush()
+
+    _update(0)
+    for i, item in enumerate(iterable, 1):
+      yield item
+      _update(i)
+    print()
+
+  @classmethod
+  def spinner(cls, message: str = "Processing...", color: str = "blue",
+              style: LoadingStyle = LoadingStyle.SPINNER) -> 'Loading':
+    """Create a spinner context manager.
+
+    Args:
+        message: Text to display
+        color: Spinner color
+        style: Animation style
+
+    Returns:
+        Configured Loading instance
+
+    Example:
+        >>> with Loading.spinner("Thinking"):
+        ...     complex_calculation()
+    """
+    return cls(message=message, color=color, style=style)
 
 
-# Legacy functions for backward compatibility
-def loading_print(*args, **kwargs):
-  return Loading.loading_print(*args, **kwargs)
+# Legacy API functions
+def loading_print(*args, **kwargs) -> Iterator:
+  """Legacy function for progress bar iteration.
+
+  See Loading.bar() for implementation.
+  """
+  return Loading.bar(*args, **kwargs)
 
 
-def loading_message(*args, **kwargs):
-  return Loading.loading_message(*args, **kwargs)
+def loading_message(*args, **kwargs) -> Callable:
+  """Legacy function for spinner context manager.
+
+  See Loading.spinner() for implementation.
+  """
+  return Loading.spinner(*args, **kwargs)
 
 
-def loading_animation(*args, **kwargs):
-  return Loading.loading_animation(*args, **kwargs)
+def loading_animation(*args, **kwargs) -> Iterator:
+  """Legacy function for animated iteration.
+
+  See Loading.bar() for implementation.
+  """
+  return Loading.bar(*args, **kwargs)
 
 
-def loading_bar(*args, **kwargs):
-  return Loading.loading_bar(*args, **kwargs)
+def loading_bar(*args, **kwargs) -> Iterator:
+  """Legacy function for progress bar.
+
+  See Loading.bar() for implementation.
+  """
+  return Loading.bar(*args, **kwargs)
 
 
-def loading_list(*args, **kwargs):
-  return Loading.loading_list(*args, **kwargs)
+def loading_list(*args, **kwargs) -> Iterator:
+  """Legacy function for list progress.
 
-
-class loading_thread(LoadingThread):
-  """Legacy class for backward compatibility"""
-  pass
+  See Loading.bar() for implementation.
+  """
+  return Loading.bar(*args, **kwargs)

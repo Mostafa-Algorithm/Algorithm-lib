@@ -4,7 +4,6 @@
 from time import sleep
 from algorithm.colors import *
 from pyfiglet import figlet_format
-from typing import Optional
 
 
 def banner1() -> None:

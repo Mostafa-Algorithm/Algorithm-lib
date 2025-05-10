@@ -381,7 +381,6 @@ class WebDriverExceptions:
   StaleElement = StaleElementReferenceException
   InvalidSelector = InvalidSelectorException
   NoSuchFrame = NoSuchFrameException
-  NoSuchAlert = NoSuchAlertException
   UnexpectedAlertPresent = UnexpectedAlertPresentException
   InvalidCookieDomain = InvalidCookieDomainException
   UnableToSetCookie = UnableToSetCookieException
