@@ -14,7 +14,7 @@ Advanced Python toolkit for networking, system operations, web automation, and u
 
 ### Clone repository
 ```bash
-git clone https://github.com/yourusername/algorithm-lib.git
+git clone https://github.com/Mostafa-Algorithm/algorithm-lib
 cd algorithm-lib
 ```
 ### Install with all dependencies
