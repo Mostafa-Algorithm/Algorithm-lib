@@ -1,0 +1,15 @@
+setuptools
+pyfiglet
+fake_email
+progressbar
+alive_progress
+progress
+requests
+netifaces
+getmac
+psutil
+validators
+speedtest-cli
+selenium
+webdriver_manager
+undetected_chromedriver
